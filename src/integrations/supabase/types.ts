@@ -14,7 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      market_data: {
+        Row: {
+          change_24h: number | null
+          high_24h: number | null
+          id: string
+          low_24h: number | null
+          price: number
+          symbol: string
+          updated_at: string
+          volume_24h: number | null
+        }
+        Insert: {
+          change_24h?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          price: number
+          symbol: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Update: {
+          change_24h?: number | null
+          high_24h?: number | null
+          id?: string
+          low_24h?: number | null
+          price?: number
+          symbol?: string
+          updated_at?: string
+          volume_24h?: number | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message: string
+          recipient: string
+          status: string
+          subject: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message: string
+          recipient: string
+          status?: string
+          subject: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message?: string
+          recipient?: string
+          status?: string
+          subject?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      positions: {
+        Row: {
+          avg_price: number
+          created_at: string
+          id: string
+          quantity: number
+          symbol: string
+          updated_at: string
+        }
+        Insert: {
+          avg_price?: number
+          created_at?: string
+          id?: string
+          quantity?: number
+          symbol: string
+          updated_at?: string
+        }
+        Update: {
+          avg_price?: number
+          created_at?: string
+          id?: string
+          quantity?: number
+          symbol?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
+      trades: {
+        Row: {
+          action: string
+          confidence: number | null
+          created_at: string
+          error_message: string | null
+          exchange_order_id: string | null
+          executed_at: string | null
+          id: string
+          price: number
+          quantity: number
+          reason: string | null
+          status: string
+          symbol: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          exchange_order_id?: string | null
+          executed_at?: string | null
+          id?: string
+          price: number
+          quantity: number
+          reason?: string | null
+          status?: string
+          symbol: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          confidence?: number | null
+          created_at?: string
+          error_message?: string | null
+          exchange_order_id?: string | null
+          executed_at?: string | null
+          id?: string
+          price?: number
+          quantity?: number
+          reason?: string | null
+          status?: string
+          symbol?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
