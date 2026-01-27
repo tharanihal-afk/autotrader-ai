@@ -1,73 +1,187 @@
-# Welcome to your Lovable project
+# Quantio - Automated Crypto Trading Platform
 
-## Project info
+A personal crypto trading platform that uses your custom algorithm to generate trade recommendations, which you approve with a single click.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## 🚀 Features
 
-## How can I edit this code?
+- **Real-time Market Data** - Live prices from Binance for BTC, ETH, SOL, and more
+- **Custom Algorithm Integration** - Plug in your own trading strategy
+- **One-Click Trade Approval** - Algorithm suggests trades, you approve or reject
+- **Email Notifications** - Get notified of new trade signals via Gmail
+- **Portfolio Tracking** - Real-time P&L and position monitoring
+- **Trade History** - Complete log of all approved/rejected trades
+- **Responsive Design** - Works on desktop, tablet, and mobile
 
-There are several ways of editing your application.
+## 📋 Prerequisites
 
-**Use Lovable**
+Before using Quantio, you need:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+1. **Binance Account** with API access enabled
+2. **Resend Account** for email notifications (free tier available)
+3. **Your trading algorithm** (or use the built-in example)
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🔧 Configuration
 
-**Use your preferred IDE**
+### Required API Keys (Already Configured)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+The following secrets have been configured in the backend:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Secret | Description |
+|--------|-------------|
+| `BINANCE_API_KEY` | Your Binance API key |
+| `BINANCE_API_SECRET` | Your Binance API secret |
+| `RESEND_API_KEY` | Resend API key for email notifications |
+| `NOTIFICATION_EMAIL` | Email address to receive trade alerts |
 
-Follow these steps:
+### Updating Secrets
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+To update API keys, go to **Cloud** → **Secrets** in the Lovable sidebar.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 🧠 Adding Your Algorithm
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### Location
+Your trading algorithm is defined in:
+```
+supabase/functions/run-algorithm/index.ts
 ```
 
-**Edit a file directly in GitHub**
+### Algorithm Function
+Modify the `analyzeMarket` function (around line 20):
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```typescript
+function analyzeMarket(
+  marketData: Array<{
+    symbol: string;
+    price: number;
+    change_24h: number;
+    volume_24h: number;
+    high_24h: number;
+    low_24h: number;
+  }>,
+  positions: Array<{
+    symbol: string;
+    quantity: number;
+    avg_price: number;
+  }>,
+  settings: {
+    max_position_value: number;
+  }
+): Array<{
+  symbol: string;
+  action: "BUY" | "SELL";
+  quantity: number;
+  price: number;
+  confidence: number;  // 0-100
+  reason: string;      // Explain why this trade
+}> {
+  const recommendations = [];
+  
+  // =========================================
+  // YOUR ALGORITHM LOGIC GOES HERE
+  // =========================================
+  
+  // Example: Buy when price drops 5%
+  for (const data of marketData) {
+    if (data.change_24h < -5) {
+      recommendations.push({
+        symbol: data.symbol,
+        action: "BUY",
+        quantity: settings.max_position_value / data.price,
+        price: data.price,
+        confidence: 85,
+        reason: `Price dropped ${data.change_24h}% - buying the dip`,
+      });
+    }
+  }
+  
+  return recommendations;
+}
+```
 
-**Use GitHub Codespaces**
+### Algorithm Tips
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. **Use the `marketData` array** - Contains live prices, 24h change, volume, highs/lows
+2. **Check `positions`** - Know what you already own before recommending new buys
+3. **Respect `max_position_value`** - Don't exceed your configured max per trade
+4. **Set meaningful `confidence`** - 80+ is high confidence, 50-79 is medium
+5. **Write clear `reason`** - Helps you decide whether to approve
 
-## What technologies are used for this project?
+## ⚙️ Platform Settings
 
-This project is built with:
+Access settings via the gear icon in the header:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Algorithm Active | Enable/disable auto-recommendations | On |
+| Max Position Value | Max USD per trade | $1,000 |
+| Watched Symbols | Cryptos to monitor | BTC,ETH,SOL,XRP,ADA,BNB,DOGE |
 
-## How can I deploy this project?
+## 🔄 How It Works
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+1. **Market Data Refresh** - Click refresh to fetch latest Binance prices
+2. **Run Algorithm** - Click "Run" to analyze markets and generate recommendations
+3. **Review Trades** - Pending trades show with confidence scores and reasons
+4. **Approve/Reject** - One click to execute on Binance or dismiss
+5. **Get Notified** - Email alerts for new recommendations and executed trades
 
-## Can I connect a custom domain to my Lovable project?
+## ⚠️ Important Notes
 
-Yes, you can!
+### Binance API Setup
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+1. Go to [Binance API Management](https://www.binance.com/en/my/settings/api-management)
+2. Create a new API key
+3. Enable **Spot Trading** permission
+4. Restrict to your IP address for security
+5. **Never enable withdrawal permissions**
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### For Testing (Testnet)
+
+The current configuration uses Binance Testnet. For real trading, edit:
+```
+supabase/functions/binance-trade/index.ts
+```
+
+Change line 52 from:
+```typescript
+const binanceUrl = "https://testnet.binance.vision/api/v3/order";
+```
+To:
+```typescript
+const binanceUrl = "https://api.binance.com/api/v3/order";
+```
+
+### Email Notifications
+
+For production email delivery:
+1. Go to [Resend Domains](https://resend.com/domains)
+2. Add and verify your domain
+3. Update the `from` address in `send-notification/index.ts`
+
+## 📁 Project Structure
+
+```
+├── src/
+│   ├── components/       # UI components
+│   ├── lib/
+│   │   └── api.ts        # Frontend API helpers
+│   └── pages/
+│       └── Index.tsx     # Main dashboard
+│
+└── supabase/
+    └── functions/
+        ├── binance-trade/       # Execute trades on Binance
+        ├── fetch-market-data/   # Get live prices
+        ├── run-algorithm/       # YOUR ALGORITHM HERE
+        └── send-notification/   # Email alerts
+```
+
+## 🔐 Security
+
+- All API keys stored as encrypted secrets
+- Trades require explicit user approval
+- RLS policies on all database tables
+- No withdrawal API permissions needed
+
+## 📞 Support
+
+This is a personal trading platform. Use at your own risk. Cryptocurrency trading involves substantial risk of loss.
