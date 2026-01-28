@@ -55,9 +55,9 @@ export default function BtcChart() {
         setLow24h(marketData.low_24h || 0);
       }
 
-      // Fetch historical kline data from Binance via edge function (15-min intervals, 96 points = 24h)
+      // Fetch historical kline data from Binance via edge function (1-min intervals, 1440 points = 24h)
       const { data, error } = await supabase.functions.invoke('fetch-market-data', {
-        body: { symbol: 'BTCUSDT', klines: true, interval: '15m', limit: 96 }
+        body: { symbol: 'BTCUSDT', klines: true, interval: '1m', limit: 1440 }
       });
 
       if (!error && data?.klines) {
@@ -205,7 +205,7 @@ export default function BtcChart() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-primary" />
-                Price Chart (24h · 15min intervals)
+                Price Chart (24h · 1min intervals)
               </CardTitle>
               <div className="text-xs text-muted-foreground font-mono">
                 {priceHistory.length} data points
@@ -236,7 +236,7 @@ export default function BtcChart() {
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    interval={11}
+                    interval={119}
                     tickMargin={8}
                   />
                   <YAxis 
