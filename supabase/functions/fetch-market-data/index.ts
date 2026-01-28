@@ -24,6 +24,32 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Check if request includes klines parameter
+    let body: { symbol?: string; klines?: boolean } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // No body provided
+    }
+
+    // If requesting klines (historical data)
+    if (body.klines && body.symbol) {
+      console.log(`Fetching klines for ${body.symbol}`);
+      const klineResponse = await fetch(
+        `https://api.binance.com/api/v3/klines?symbol=${body.symbol}&interval=1h&limit=24`
+      );
+      
+      if (!klineResponse.ok) {
+        throw new Error(`Binance klines API error: ${klineResponse.status}`);
+      }
+      
+      const klines = await klineResponse.json();
+      return new Response(
+        JSON.stringify({ success: true, klines }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Get watched symbols from settings
     const { data: settingsData } = await supabase
       .from("settings")
