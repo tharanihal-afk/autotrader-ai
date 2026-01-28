@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
 
     // Execute order on Binance
     // NOTE: Using testnet for safety - change to api.binance.com for production
-    const binanceUrl = "https://testnet.binance.vision/api/v3/order";
+    const binanceUrl = "https://api.binance.com/api/v3/order";
     
     const binanceResponse = await fetch(`${binanceUrl}?${params.toString()}`, {
       method: "POST",
