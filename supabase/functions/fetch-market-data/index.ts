@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Check if request includes klines parameter
-    let body: { symbol?: string; klines?: boolean } = {};
+    let body: { symbol?: string; klines?: boolean; interval?: string; limit?: number } = {};
     try {
       body = await req.json();
     } catch {
@@ -34,9 +34,12 @@ Deno.serve(async (req) => {
 
     // If requesting klines (historical data)
     if (body.klines && body.symbol) {
-      console.log(`Fetching klines for ${body.symbol}`);
+      const interval = body.interval || '15m';
+      const limit = body.limit || 96; // 24 hours of 15-min data
+      console.log(`Fetching klines for ${body.symbol}, interval: ${interval}, limit: ${limit}`);
+      
       const klineResponse = await fetch(
-        `https://api.binance.com/api/v3/klines?symbol=${body.symbol}&interval=1h&limit=24`
+        `https://api.binance.com/api/v3/klines?symbol=${body.symbol}&interval=${interval}&limit=${limit}`
       );
       
       if (!klineResponse.ok) {
