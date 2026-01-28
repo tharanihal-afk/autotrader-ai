@@ -1,4 +1,5 @@
-import { TrendingUp, TrendingDown, BarChart3, RefreshCw } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { TrendingUp, TrendingDown, BarChart3, RefreshCw, LineChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { MarketData, formatCurrency, formatNumber } from '@/lib/api';
@@ -10,6 +11,8 @@ interface MarketOverviewProps {
 }
 
 export const MarketOverview = ({ marketData, onRefresh, isRefreshing }: MarketOverviewProps) => {
+  const navigate = useNavigate();
+
   return (
     <Card className="border-border bg-card/80 backdrop-blur-sm">
       <CardHeader className="pb-2 px-4 sm:px-6">
@@ -33,6 +36,7 @@ export const MarketOverview = ({ marketData, onRefresh, isRefreshing }: MarketOv
         <div className="space-y-2">
           {marketData.map((data) => {
             const isPositive = (data.change_24h || 0) >= 0;
+            const isBtc = data.symbol === 'BTC';
 
             return (
               <div
@@ -45,11 +49,24 @@ export const MarketOverview = ({ marketData, onRefresh, isRefreshing }: MarketOv
                       {data.symbol.slice(0, 2)}
                     </span>
                   </div>
-                  <div>
-                    <span className="font-semibold text-sm sm:text-base">{data.symbol}</span>
-                    <p className="text-[10px] sm:text-xs text-muted-foreground">
-                      Vol: {formatCurrency(data.volume_24h || 0)}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <div>
+                      <span className="font-semibold text-sm sm:text-base">{data.symbol}</span>
+                      <p className="text-[10px] sm:text-xs text-muted-foreground">
+                        Vol: {formatCurrency(data.volume_24h || 0)}
+                      </p>
+                    </div>
+                    {isBtc && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate('/btc-chart')}
+                        className="h-7 w-7 p-0 hover:bg-primary/20 hover:text-primary"
+                        title="View BTC Chart"
+                      >
+                        <LineChart className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
