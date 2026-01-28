@@ -1,23 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
+import { XAxis, YAxis, CartesianGrid, Area, AreaChart, Bar, BarChart, ComposedChart, ReferenceLine, Tooltip } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency, formatNumber } from '@/lib/api';
+import { formatNumber } from '@/lib/api';
 
 interface PricePoint {
   time: string;
   price: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
   timestamp: number;
 }
 
 const chartConfig = {
   price: {
-    label: "BTC Price",
+    label: "Price",
     color: "hsl(var(--primary))",
+  },
+  volume: {
+    label: "Volume",
+    color: "hsl(var(--muted-foreground))",
   },
 };
 
@@ -47,20 +55,24 @@ export default function BtcChart() {
         setLow24h(marketData.low_24h || 0);
       }
 
-      // Fetch historical kline data from Binance via edge function
+      // Fetch historical kline data from Binance via edge function (15-min intervals, 96 points = 24h)
       const { data, error } = await supabase.functions.invoke('fetch-market-data', {
-        body: { symbol: 'BTCUSDT', klines: true }
+        body: { symbol: 'BTCUSDT', klines: true, interval: '15m', limit: 96 }
       });
 
       if (!error && data?.klines) {
-        const formattedData = data.klines.map((kline: number[]) => ({
-          timestamp: kline[0],
-          time: new Date(kline[0]).toLocaleTimeString('en-US', { 
+        const formattedData = data.klines.map((kline: (string | number)[]) => ({
+          timestamp: kline[0] as number,
+          time: new Date(kline[0] as number).toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit',
             hour12: false 
           }),
+          open: parseFloat(String(kline[1])),
+          high: parseFloat(String(kline[2])),
+          low: parseFloat(String(kline[3])),
           price: parseFloat(String(kline[4])), // Close price
+          volume: parseFloat(String(kline[5])),
         }));
         setPriceHistory(formattedData);
       }
@@ -187,13 +199,18 @@ export default function BtcChart() {
           </CardContent>
         </Card>
 
-        {/* Main Chart */}
+        {/* Main Price Chart */}
         <Card className="border-border bg-card/80 backdrop-blur-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Price Chart (Last 24 Hours)
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Price Chart (24h · 15min intervals)
+              </CardTitle>
+              <div className="text-xs text-muted-foreground font-mono">
+                {priceHistory.length} data points
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading ? (
@@ -205,36 +222,76 @@ export default function BtcChart() {
               </div>
             ) : priceHistory.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[400px] w-full">
-                <AreaChart data={priceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <ComposedChart data={priceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
                   <XAxis 
                     dataKey="time" 
                     stroke="hsl(var(--muted-foreground))"
-                    fontSize={11}
+                    fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    interval="preserveStartEnd"
+                    interval={11}
+                    tickMargin={8}
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
-                    fontSize={11}
+                    fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(1)}k`}
-                    domain={['dataMin - 100', 'dataMax + 100']}
+                    tickFormatter={(value) => `$${value.toLocaleString()}`}
+                    domain={['dataMin - 50', 'dataMax + 50']}
+                    width={75}
+                    tickCount={8}
                   />
-                  <ChartTooltip 
-                    content={
-                      <ChartTooltipContent 
-                        formatter={(value) => [`$${formatNumber(value as number, 2)}`, 'Price']}
-                      />
-                    }
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length > 0) {
+                        const data = payload[0].payload as PricePoint;
+                        const priceChange = data.price - data.open;
+                        const priceChangePercent = ((priceChange / data.open) * 100);
+                        const isUp = priceChange >= 0;
+                        return (
+                          <div className="bg-popover border border-border rounded-lg p-3 shadow-xl">
+                            <p className="text-xs text-muted-foreground mb-2 font-mono">{data.time}</p>
+                            <div className="space-y-1 text-sm font-mono">
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Open:</span>
+                                <span className="text-foreground">${formatNumber(data.open, 2)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">High:</span>
+                                <span className="text-success">${formatNumber(data.high, 2)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Low:</span>
+                                <span className="text-destructive">${formatNumber(data.low, 2)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Close:</span>
+                                <span className="text-foreground font-bold">${formatNumber(data.price, 2)}</span>
+                              </div>
+                              <div className="flex justify-between gap-4 pt-1 border-t border-border">
+                                <span className="text-muted-foreground">Change:</span>
+                                <span className={isUp ? 'text-success' : 'text-destructive'}>
+                                  {isUp ? '+' : ''}{formatNumber(priceChange, 2)} ({isUp ? '+' : ''}{priceChangePercent.toFixed(2)}%)
+                                </span>
+                              </div>
+                              <div className="flex justify-between gap-4">
+                                <span className="text-muted-foreground">Volume:</span>
+                                <span className="text-foreground">{formatNumber(data.volume, 4)} BTC</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Area
                     type="monotone"
@@ -242,8 +299,10 @@ export default function BtcChart() {
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     fill="url(#priceGradient)"
+                    dot={false}
+                    activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
                   />
-                </AreaChart>
+                </ComposedChart>
               </ChartContainer>
             ) : (
               <div className="h-[400px] flex items-center justify-center">
@@ -253,12 +312,67 @@ export default function BtcChart() {
           </CardContent>
         </Card>
 
+        {/* Volume Chart */}
+        <Card className="border-border bg-card/80 backdrop-blur-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-muted-foreground" />
+              Volume (24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!isLoading && priceHistory.length > 0 && (
+              <ChartContainer config={chartConfig} className="h-[120px] w-full">
+                <BarChart data={priceHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                  <XAxis 
+                    dataKey="time" 
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={23}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `${value.toFixed(0)}`}
+                    width={45}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length > 0) {
+                        const data = payload[0].payload as PricePoint;
+                        return (
+                          <div className="bg-popover border border-border rounded-lg p-2 shadow-xl">
+                            <p className="text-xs text-muted-foreground font-mono">{data.time}</p>
+                            <p className="text-sm font-mono font-bold">{formatNumber(data.volume, 4)} BTC</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar 
+                    dataKey="volume" 
+                    fill="hsl(var(--muted-foreground))"
+                    opacity={0.6}
+                    radius={[2, 2, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Info Card */}
         <Card className="border-border bg-card/80 backdrop-blur-sm">
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">
-              <span className="text-primary">●</span> Chart updates every 30 seconds with live data from Binance. 
-              Displaying hourly candle close prices for the last 24 hours.
+              <span className="text-primary">●</span> Live data from Binance (api.binance.com). 
+              Chart displays 15-minute OHLCV candles for the last 24 hours with {priceHistory.length} data points. 
+              Auto-refreshes every 30 seconds.
             </p>
           </CardContent>
         </Card>
