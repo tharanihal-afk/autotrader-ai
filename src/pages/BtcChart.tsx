@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, BarChart3, CandlestickChart, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer } from '@/components/ui/chart';
-import { XAxis, YAxis, CartesianGrid, Area, Bar, BarChart, ComposedChart, Tooltip, Cell, ReferenceArea } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Area, Bar, BarChart, ComposedChart, Tooltip, Cell, ResponsiveContainer } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/api';
 
@@ -31,43 +31,47 @@ const chartConfig = {
   },
 };
 
-// Custom Candlestick component
-const Candlestick = (props: any) => {
-  const { x, y, width, height, open, close, high, low, yAxisScale } = props;
+// Custom Candlestick Bar Shape - uses the chart's internal coordinate system
+const CandlestickShape = (props: any) => {
+  const { x, width, payload, yAxis } = props;
+  if (!payload || !yAxis) return null;
+  
+  const { open, price: close, high, low } = payload;
   const isUp = close >= open;
-  const color = isUp ? 'hsl(var(--success))' : 'hsl(var(--destructive))';
+  const color = isUp ? '#22c55e' : '#ef4444';
   
-  const candleWidth = Math.max(width * 0.6, 1);
-  const wickWidth = 1;
+  // Use yAxis scale to convert price values to pixel positions
+  const scale = yAxis.scale;
+  if (!scale) return null;
   
-  const highY = yAxisScale(high);
-  const lowY = yAxisScale(low);
-  const openY = yAxisScale(open);
-  const closeY = yAxisScale(close);
+  const highY = scale(high);
+  const lowY = scale(low);
+  const openY = scale(open);
+  const closeY = scale(close);
   
   const bodyTop = Math.min(openY, closeY);
-  const bodyHeight = Math.abs(openY - closeY) || 1;
+  const bodyHeight = Math.max(Math.abs(openY - closeY), 1);
+  const candleWidth = Math.max(width * 0.6, 1);
+  const candleX = x + (width - candleWidth) / 2;
   
   return (
     <g>
-      {/* Wick */}
+      {/* Wick line from high to low */}
       <line
         x1={x + width / 2}
         y1={highY}
         x2={x + width / 2}
         y2={lowY}
         stroke={color}
-        strokeWidth={wickWidth}
+        strokeWidth={1}
       />
-      {/* Body */}
+      {/* Candle body */}
       <rect
-        x={x + (width - candleWidth) / 2}
+        x={candleX}
         y={bodyTop}
         width={candleWidth}
         height={bodyHeight}
-        fill={isUp ? color : color}
-        stroke={color}
-        strokeWidth={0.5}
+        fill={color}
       />
     </g>
   );
@@ -83,6 +87,17 @@ export default function BtcChart() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chartType, setChartType] = useState<ChartType>('area');
+
+  // Calculate price domain for proper candlestick scaling
+  const priceDomain = useMemo(() => {
+    if (priceHistory.length === 0) return [0, 100];
+    const lows = priceHistory.map(p => p.low);
+    const highs = priceHistory.map(p => p.high);
+    const min = Math.min(...lows);
+    const max = Math.max(...highs);
+    const padding = (max - min) * 0.02;
+    return [min - padding, max + padding];
+  }, [priceHistory]);
 
   const fetchBtcData = async () => {
     try {
@@ -312,7 +327,7 @@ export default function BtcChart() {
                     tickLine={false}
                     axisLine={false}
                     tickFormatter={(value) => `$${value.toLocaleString()}`}
-                    domain={['dataMin - 50', 'dataMax + 50']}
+                    domain={chartType === 'candlestick' ? priceDomain : ['dataMin - 50', 'dataMax + 50']}
                     width={75}
                     tickCount={8}
                   />
@@ -372,25 +387,9 @@ export default function BtcChart() {
                     />
                   ) : (
                     <Bar
-                      dataKey="price"
-                      shape={(props: any) => {
-                        const { x, width, payload } = props;
-                        const yScale = props.yAxis?.scale;
-                        if (!yScale) return null;
-                        return (
-                          <Candlestick
-                            x={x}
-                            y={0}
-                            width={width}
-                            height={0}
-                            open={payload.open}
-                            close={payload.price}
-                            high={payload.high}
-                            low={payload.low}
-                            yAxisScale={yScale}
-                          />
-                        );
-                      }}
+                      dataKey="high"
+                      shape={<CandlestickShape />}
+                      isAnimationActive={false}
                     />
                   )}
                 </ComposedChart>
@@ -413,44 +412,53 @@ export default function BtcChart() {
           </CardHeader>
           <CardContent>
             {!isLoading && priceHistory.length > 0 && (
-              <ChartContainer config={chartConfig} className="h-[120px] w-full">
-                <BarChart data={priceHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+              <ChartContainer config={chartConfig} className="h-[160px] w-full">
+                <BarChart data={priceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.2} />
                   <XAxis 
                     dataKey="time" 
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    interval={239}
+                    interval={287}
+                    tickMargin={8}
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `${value.toFixed(0)}`}
+                    tickFormatter={(value) => value >= 1 ? `${value.toFixed(0)}` : value.toFixed(1)}
                     width={45}
+                    tickCount={4}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (active && payload && payload.length > 0) {
                         const data = payload[0].payload as PricePoint;
+                        const isUp = data.price >= data.open;
                         return (
                           <div className="bg-popover border border-border rounded-lg p-2 shadow-xl">
                             <p className="text-xs text-muted-foreground font-mono">{data.time}</p>
-                            <p className="text-sm font-mono font-bold">{formatNumber(data.volume, 4)} BTC</p>
+                            <p className={`text-sm font-mono font-bold ${isUp ? 'text-success' : 'text-destructive'}`}>
+                              {formatNumber(data.volume, 4)} BTC
+                            </p>
+                            <p className="text-xs text-muted-foreground font-mono">
+                              ≈ ${formatNumber(data.volume * data.price, 0)}
+                            </p>
                           </div>
                         );
                       }
                       return null;
                     }}
                   />
-                  <Bar dataKey="volume" radius={[1, 1, 0, 0]}>
+                  <Bar dataKey="volume" radius={[1, 1, 0, 0]} maxBarSize={3}>
                     {priceHistory.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={entry.price >= entry.open ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} 
-                        fillOpacity={0.5}
+                        fill={entry.price >= entry.open ? '#22c55e' : '#ef4444'} 
+                        fillOpacity={0.8}
                       />
                     ))}
                   </Bar>
@@ -465,7 +473,7 @@ export default function BtcChart() {
           <CardContent className="p-4">
             <p className="text-xs text-muted-foreground">
               <span className="text-primary">●</span> Live data from Binance (api.binance.com). 
-              Chart displays 15-minute OHLCV candles for the last 24 hours with {priceHistory.length} data points. 
+              Chart displays 1-minute OHLCV data for the last 24 hours ({priceHistory.length} data points). 
               Auto-refreshes every 30 seconds.
             </p>
           </CardContent>
