@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, BarChart3 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, BarChart3, CandlestickChart, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
-import { XAxis, YAxis, CartesianGrid, Area, AreaChart, Bar, BarChart, ComposedChart, ReferenceLine, Tooltip } from 'recharts';
+import { ChartContainer } from '@/components/ui/chart';
+import { XAxis, YAxis, CartesianGrid, Area, Bar, BarChart, ComposedChart, Tooltip, Cell, ReferenceArea } from 'recharts';
 import { supabase } from '@/integrations/supabase/client';
 import { formatNumber } from '@/lib/api';
 
@@ -18,6 +18,8 @@ interface PricePoint {
   timestamp: number;
 }
 
+type ChartType = 'area' | 'candlestick';
+
 const chartConfig = {
   price: {
     label: "Price",
@@ -29,6 +31,48 @@ const chartConfig = {
   },
 };
 
+// Custom Candlestick component
+const Candlestick = (props: any) => {
+  const { x, y, width, height, open, close, high, low, yAxisScale } = props;
+  const isUp = close >= open;
+  const color = isUp ? 'hsl(var(--success))' : 'hsl(var(--destructive))';
+  
+  const candleWidth = Math.max(width * 0.6, 1);
+  const wickWidth = 1;
+  
+  const highY = yAxisScale(high);
+  const lowY = yAxisScale(low);
+  const openY = yAxisScale(open);
+  const closeY = yAxisScale(close);
+  
+  const bodyTop = Math.min(openY, closeY);
+  const bodyHeight = Math.abs(openY - closeY) || 1;
+  
+  return (
+    <g>
+      {/* Wick */}
+      <line
+        x1={x + width / 2}
+        y1={highY}
+        x2={x + width / 2}
+        y2={lowY}
+        stroke={color}
+        strokeWidth={wickWidth}
+      />
+      {/* Body */}
+      <rect
+        x={x + (width - candleWidth) / 2}
+        y={bodyTop}
+        width={candleWidth}
+        height={bodyHeight}
+        fill={isUp ? color : color}
+        stroke={color}
+        strokeWidth={0.5}
+      />
+    </g>
+  );
+};
+
 export default function BtcChart() {
   const navigate = useNavigate();
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
@@ -38,6 +82,7 @@ export default function BtcChart() {
   const [low24h, setLow24h] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [chartType, setChartType] = useState<ChartType>('area');
 
   const fetchBtcData = async () => {
     try {
@@ -207,8 +252,30 @@ export default function BtcChart() {
                 <TrendingUp className="h-5 w-5 text-primary" />
                 Price Chart (24h · 1min intervals)
               </CardTitle>
-              <div className="text-xs text-muted-foreground font-mono">
-                {priceHistory.length} data points
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 bg-secondary/50 rounded-md p-1">
+                  <Button
+                    variant={chartType === 'area' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setChartType('area')}
+                    className="h-7 px-2"
+                  >
+                    <LineChart className="h-4 w-4 mr-1" />
+                    Line
+                  </Button>
+                  <Button
+                    variant={chartType === 'candlestick' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => setChartType('candlestick')}
+                    className="h-7 px-2"
+                  >
+                    <CandlestickChart className="h-4 w-4 mr-1" />
+                    Candles
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground font-mono">
+                  {priceHistory.length} data points
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -225,18 +292,18 @@ export default function BtcChart() {
                 <ComposedChart data={priceHistory} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.5} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.3} />
                   <XAxis 
                     dataKey="time" 
                     stroke="hsl(var(--muted-foreground))"
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    interval={119}
+                    interval={179}
                     tickMargin={8}
                   />
                   <YAxis 
@@ -293,15 +360,39 @@ export default function BtcChart() {
                       return null;
                     }}
                   />
-                  <Area
-                    type="monotone"
-                    dataKey="price"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    fill="url(#priceGradient)"
-                    dot={false}
-                    activeDot={{ r: 4, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
-                  />
+                  {chartType === 'area' ? (
+                    <Area
+                      type="monotone"
+                      dataKey="price"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth={1}
+                      fill="url(#priceGradient)"
+                      dot={false}
+                      activeDot={{ r: 3, strokeWidth: 1, stroke: 'hsl(var(--background))' }}
+                    />
+                  ) : (
+                    <Bar
+                      dataKey="price"
+                      shape={(props: any) => {
+                        const { x, width, payload } = props;
+                        const yScale = props.yAxis?.scale;
+                        if (!yScale) return null;
+                        return (
+                          <Candlestick
+                            x={x}
+                            y={0}
+                            width={width}
+                            height={0}
+                            open={payload.open}
+                            close={payload.price}
+                            high={payload.high}
+                            low={payload.low}
+                            yAxisScale={yScale}
+                          />
+                        );
+                      }}
+                    />
+                  )}
                 </ComposedChart>
               </ChartContainer>
             ) : (
@@ -330,7 +421,7 @@ export default function BtcChart() {
                     fontSize={10}
                     tickLine={false}
                     axisLine={false}
-                    interval={23}
+                    interval={239}
                   />
                   <YAxis 
                     stroke="hsl(var(--muted-foreground))"
@@ -354,12 +445,15 @@ export default function BtcChart() {
                       return null;
                     }}
                   />
-                  <Bar 
-                    dataKey="volume" 
-                    fill="hsl(var(--muted-foreground))"
-                    opacity={0.6}
-                    radius={[2, 2, 0, 0]}
-                  />
+                  <Bar dataKey="volume" radius={[1, 1, 0, 0]}>
+                    {priceHistory.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.price >= entry.open ? 'hsl(var(--success))' : 'hsl(var(--destructive))'} 
+                        fillOpacity={0.5}
+                      />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ChartContainer>
             )}
